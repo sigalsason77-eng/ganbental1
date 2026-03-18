@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מרכז המשחקים - גן בנטל</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #fff5f5; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            min-height: 100vh; margin: 0; padding: 20px;
+        }
+        .login-box {
+            background: white; padding: 40px; border-radius: 25px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center;
+        }
+        h1 { color: #db2777; margin-bottom: 20px; font-size: 2.2rem; }
+        input { 
+            padding: 15px; font-size: 20px; border: 2px solid #ddd; 
+            border-radius: 10px; width: 200px; text-align: center; margin-bottom: 20px;
+            outline: none;
+        }
+        button.login-btn { 
+            padding: 15px 35px; font-size: 20px; background: #db2777; 
+            color: white; border: none; border-radius: 15px; cursor: pointer;
+            transition: background 0.3s;
+        }
+        button.login-btn:hover { background: #be185d; }
+
+        #menu-section { display: none; flex-direction: column; align-items: center; gap: 20px; width: 100%; }
+        
+        /* גריד גמיש שמתאים את עצמו למספר המשחקים */
+        .grid-menu { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); /* 3 עמודות למראה נקי */
+            gap: 20px; 
+            max-width: 800px; 
+            width: 100%;
+        }
+        
+        .btn { 
+            padding: 25px; font-size: 20px; font-weight: bold; color: white; 
+            border: none; border-radius: 25px; cursor: pointer; text-decoration: none;
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
+            transition: all 0.3s ease; box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+        .btn:hover { transform: translateY(-5px); box-shadow: 0 12px 20px rgba(0,0,0,0.2); }
+        
+        /* צבעים למשחקים */
+        .blue { background: #3b82f6; }   
+        .pink { background: #db2777; }   
+        .orange { background: #f59e0b; } 
+        .teal { background: #0d9488; }   
+        .purple { background: #8b5cf6; } /* צבע חדש לפרפרים */
+        
+        .emoji { font-size: 45px; }
+
+        /* התאמה לניידים - 2 עמודות או 1 לפי גודל המסך */
+        @media (max-width: 768px) {
+            .grid-menu { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 450px) {
+            .grid-menu { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-section" class="login-box">
+        <h1>שלום! 👋<br>נא להקיש סיסמה</h1>
+        <input type="password" id="pass-input" placeholder="סיסמה">
+        <br>
+        <button class="login-btn" onclick="checkPassword()">כניסה</button>
+    </div>
+
+    <div id="menu-section">
+        <h1>מה נשחק היום? ✨</h1>
+        <div class="grid-menu">
+            <a href="memory.html" class="btn blue">
+                <span class="emoji">🧠</span>
+                <span>משחק הזיכרון</span>
+            </a>
+            <a href="puzzle.html" class="btn pink">
+                <span class="emoji">🧩</span>
+                <span>משחק פאזל</span>
+            </a>
+            <a href="guess.html" class="btn orange">
+                <span class="emoji">🤔</span>
+                <span>נחש מי זה</span>
+            </a>
+            <a href="wheel.html" class="btn teal">
+                <span class="emoji">🎡</span>
+                <span>גלגל התנועות</span>
+            </a>
+            <a href="butterfly_game.html" class="btn purple">
+                <span class="emoji">🦋</span>
+                <span>שלושת הפרפרים</span>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        function checkPassword() {
+            const input = document.getElementById('pass-input').value;
+            const password = "1234"; 
+            
+            if (input === password) {
+                showMenu();
+                sessionStorage.setItem('isLoggedIn', 'true');
+            } else {
+                alert("סיסמה לא נכונה, נסו שוב :)");
+            }
+        }
+
+        function showMenu() {
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('menu-section').style.display = 'flex';
+        }
+
+        if (sessionStorage.getItem('isLoggedIn') === 'true') {
+            showMenu();
+        }
+
+        document.getElementById('pass-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                checkPassword();
+            }
+        });
+    </script>
+</body>
+</html>

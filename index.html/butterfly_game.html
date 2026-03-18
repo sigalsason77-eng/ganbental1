@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>מסע הפרפרים - גן בנטל (גרסה מתוקנת)</title>
+    <style>
+        body { 
+            display: flex; flex-direction: column; align-items: center;
+            background-color: #f0f8ff; font-family: 'Segoe UI', sans-serif; margin: 0; 
+            min-height: 100vh; overflow-x: hidden; touch-action: none; user-select: none; 
+        }
+        
+        #back-to-index {
+            position: absolute; top: 10px; right: 10px;
+            padding: 10px 18px; background: #5dade2; color: white;
+            text-decoration: none; border-radius: 12px; font-weight: bold;
+            z-index: 2000; font-size: 14px;
+        }
+
+        #msg { 
+            font-size: clamp(20px, 5vw, 32px); 
+            margin: 15px; font-weight: bold; color: #2c3e50; text-align: center;
+            width: 90%; margin-top: 60px; /* רווח מהכפתור העליון */
+            min-height: 40px;
+        }
+
+        /* מכולת המשחק - חכמה ורספונסיבית */
+        #game-wrapper { 
+            position: relative; 
+            /* ברירת מחדל למחשב: גודל קבוע וגדול */
+            width: 850px; 
+            height: 500px; 
+            border: 8px solid #ffcc00; border-radius: 25px; 
+            background: white; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.15); 
+            transition: all 0.3s ease;
+        }
+
+        /* התאמה מיוחדת למסכים קטנים (פלאפון) */
+        @media (max-width: 880px) {
+            #game-wrapper {
+                width: 92vw; /* כמעט כל רוחב המסך */
+                height: 50vh; /* חצי מגובה המסך */
+                border-width: 5px;
+                border-radius: 15px;
+            }
+            #msg { margin-top: 55px; }
+        }
+
+        /* אזור הכפתור בתחתית - Sticky */
+        #footer-area {
+            position: fixed; bottom: 0; left: 0;
+            width: 100%; padding: 15px 0; background: rgba(255, 255, 255, 0.95); 
+            border-top: 2px solid #ddd; display: flex; justify-content: center;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.05); z-index: 1000;
+        }
+
+        .next-btn { 
+            padding: 15px 45px; font-size: clamp(20px, 5vw, 28px); font-weight: bold; 
+            color: white; border: none; border-radius: 50px; 
+            cursor: pointer; background: #ff9800;
+            box-shadow: 0 5px 0 #e68a00;
+            transition: all 0.1s ease;
+        }
+        .next-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #e68a00; }
+
+        /* אלמנטים של המשחק - מיקומים התחלתיים מתוקנים */
+        .flower-s1 { width: 16%; position: absolute; bottom: 15%; cursor: pointer; max-width: 140px; }
+        
+        /* הפרפרים מתחילים למעלה! */
+        .butterfly-s1 { 
+            width: 12%; position: absolute; 
+            top: 10%; /* מתחילים למעלה */
+            left: 44%; 
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1); 
+            max-width: 100px; z-index: 10;
+        }
+        
+        .butterfly-drag { position: absolute; width: 14%; cursor: grab; z-index: 10; touch-action: none; max-width: 110px; }
+        
+        .flower-target { position: absolute; width: 20%; bottom: 15%; display: flex; justify-content: center; max-width: 160px; }
+        .flower-target img { width: 100%; }
+
+        #discovery-container { position: absolute; top:0; left:0; width:100%; height:100%; display:none; }
+        #clouds-canvas { position: absolute; top:0; left:0; width:100%; height:100%; z-index:5; cursor: crosshair; }
+        #sun-cursor { position: absolute; width: 80px; height: 80px; pointer-events: none; z-index: 100; display: none; transform: translate(-50%, -50%); }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <a href="index.html" id="back-to-index">🏠 חזרה</a>
+
+    <div id="msg">שלב 1: התאימו את הפרפר לפרח</div>
+    
+    <div id="game-wrapper">
+        <div id="step1">
+            <img src="פרח1.png" class="flower-s1" style="left: 10%;" onclick="checkMatch(1)">
+            <img src="פרח2.png" class="flower-s1" style="left: 42%;" onclick="checkMatch(2)">
+            <img src="פרח3.png" class="flower-s1" style="left: 74%;" onclick="checkMatch(3)">
+            <img src="פרפר1.png" id="butterfly1" class="butterfly-s1">
+            <img src="פרפר2.png" id="butterfly2" class="butterfly-s1 hidden">
+            <img src="פרפר3.png" id="butterfly3" class="butterfly-s1 hidden">
+        </div>
+
+        <div id="discovery-container">
+            <img src="רקע.png" style="width:100%; height:100%; object-fit: cover;">
+            <canvas id="clouds-canvas"></canvas>
+            <img src="שמש.png" id="sun-cursor">
+        </div>
+
+        <div id="drag-container" class="hidden">
+            <div class="flower-target" style="left: 8%;" id="t1"><img src="פרח1.png"></div>
+            <div class="flower-target" style="left: 40%;" id="t2"><img src="פרח2.png"></div>
+            <div class="flower-target" style="left: 72%;" id="t3"><img src="פרח3.png"></div>
+            <img src="פרפר1.png" class="butterfly-drag" id="drag1" style="top: 10%; left: 15%;">
+            <img src="פרפר2.png" class="butterfly-drag" id="drag2" style="top: 10%; left: 43%;">
+            <img src="פרפר3.png" class="butterfly-drag" id="drag3" style="top: 10%; left: 71%;">
+        </div>
+    </div>
+
+    <div id="footer-area">
+        <button id="next-btn" class="next-btn" onclick="goToNextLevel()">עברו לשלב הבא ⮕</button>
+    </div>
+
+    <script>
+        // בדיקת אבטחה
+        if (sessionStorage.getItem('isLoggedIn') !== 'true') { window.location.href = "index.html"; }
+
+        let currentLevel = 1;
+        let s1_sub = 1;
+        const mainBtn = document.getElementById('next-btn');
+        const wrapper = document.getElementById('game-wrapper');
+
+        function goToNextLevel() {
+            if (currentLevel === 1) { currentLevel = 2; startS2(); }
+            else if (currentLevel === 2) { currentLevel = 3; startS3(); }
+            else if (currentLevel === 3) { location.reload(); }
+        }
+
+        function checkMatch(flowerId) {
+            if (flowerId === s1_sub) {
+                const b = document.getElementById('butterfly' + s1_sub);
+                const flowers = document.querySelectorAll('.flower-s1');
+                const f = flowers[flowerId - 1];
+                
+                // חישוב מיקום מדויק מעל הפרח
+                const wrapperRect = wrapper.getBoundingClientRect();
+                const flowerRect = f.getBoundingClientRect();
+                
+                b.style.left = (f.offsetLeft + (f.offsetWidth / 2) - (b.offsetWidth / 2)) + "px";
+                b.style.top = (f.offsetTop - (b.offsetHeight * 0.8)) + "px";
+                
+                setTimeout(() => {
+                    if (s1_sub < 3) {
+                        b.classList.add('hidden');
+                        s1_sub++;
+                        const nextB = document.getElementById('butterfly' + s1_sub);
+                        nextB.classList.remove('hidden');
+                        // איפוס מיקום לפרפר הבא
+                        nextB.style.left = "44%"; nextB.style.top = "10%";
+                    } else { document.getElementById('msg').innerText = "כל הכבוד! עברו לשלב הבא"; }
+                }, 1000);
+            }
+        }
+
+        function startS2() {
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('discovery-container').style.display = 'block';
+            document.getElementById('msg').innerText = "שלב 2: גרשו את העננים!";
+            
+            const canvas = document.getElementById('clouds-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // עדכון גודל הקנבס לפי גודל המכולה הנוכחי
+            canvas.width = wrapper.clientWidth;
+            canvas.height = wrapper.clientHeight;
+            
+            const img = new Image();
+            img.src = 'עננים.png';
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineWidth = 60; ctx.lineCap = 'round';
+                document.getElementById('sun-cursor').style.display = 'block';
+                setupS2(canvas, ctx);
+            };
+        }
+
+        function setupS2(canvas, ctx) {
+            let drawing = false;
+            const sun = document.getElementById('sun-cursor');
+            const move = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+                const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+                sun.style.left = x + "px"; sun.style.top = y + "px";
+                if (drawing) { ctx.lineTo(x, y); ctx.stroke(); }
+            };
+            canvas.addEventListener('mousedown', () => { drawing = true; ctx.beginPath(); });
+            canvas.addEventListener('touchstart', (e) => { drawing = true; ctx.beginPath(); move(e); });
+            window.addEventListener('mouseup', () => drawing = false);
+            window.addEventListener('touchend', () => drawing = false);
+            canvas.addEventListener('mousemove', move);
+            canvas.addEventListener('touchmove', (e) => { move(e); e.preventDefault(); }, {passive: false});
+        }
+
+        function startS3() {
+            document.getElementById('discovery-container').style.display = 'none';
+            document.getElementById('drag-container').classList.remove('hidden');
+            document.getElementById('msg').innerText = "שלב 3: גררו את הפרפרים לבית";
+            setupS3();
+        }
+
+        function setupS3() {
+            let count = 0;
+            const drags = document.querySelectorAll('.butterfly-drag');
+            drags.forEach(bf => {
+                let dragging = false;
+                const start = () => { dragging = true; bf.style.zIndex = 100; };
+                const move = (e) => {
+                    if (!dragging) return;
+                    const cX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const cY = e.touches ? e.touches[0].clientY : e.clientY;
+                    const rect = wrapper.getBoundingClientRect();
+                    bf.style.left = (cX - rect.left - bf.offsetWidth/2) + "px";
+                    bf.style.top = (cY - rect.top - bf.offsetHeight/2) + "px";
+                };
+                const end = () => {
+                    if (!dragging) return; dragging = false;
+                    const id = bf.id.replace('drag', '');
+                    const target = document.getElementById('t' + id);
+                    const tRect = target.getBoundingClientRect();
+                    const bRect = bf.getBoundingClientRect();
+                    
+                    // בדיקת קרבה לפרח המטרה
+                    const dist = Math.hypot(
+                        (bRect.left + bRect.width/2) - (tRect.left + tRect.width/2),
+                        (bRect.top + bRect.height/2) - (tRect.top + tRect.height/2)
+                    );
+                    
+                    if (dist < 90) { // קרבה מספקת
+                        bf.style.left = target.offsetLeft + "px";
+                        bf.style.top = (target.offsetTop - 20) + "px";
+                        bf.style.pointerEvents = "none";
+                        count++;
+                        if (count === 3) { 
+                            document.getElementById('msg').innerText = "ניצחתם!"; 
+                            mainBtn.innerText = "שחקו שוב ↺";
+                        }
+                    } else {
+                        // החזרה למקום אם לא קרוב מספיק
+                        bf.style.top = "10%";
+                        bf.style.left = (id == 1 ? "15%" : id == 2 ? "43%" : "71%");
+                    }
+                };
+                bf.addEventListener('mousedown', start); bf.addEventListener('touchstart', start);
+                document.addEventListener('mousemove', move); document.addEventListener('touchmove', move, {passive:false});
+                document.addEventListener('mouseup', end); document.addEventListener('touchend', end);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>משחק פאזל מושלם</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body { 
+            margin: 0; padding: 0; width: 100vw; height: 100vh; 
+            background: #fdf2f8; overflow: hidden; touch-action: none; 
+            font-family: sans-serif; display: flex; flex-direction: column; align-items: center;
+        }
+        
+        /* לוח המשחק - שומר על יחס 3:2 */
+        #game-board { 
+            position: relative; 
+            width: 80vw; max-width: 600px; 
+            aspect-ratio: 3 / 2;
+            border: 4px dashed #db2777; 
+            margin-top: 60px;
+            background: rgba(255, 255, 255, 0.8);
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+
+        .slot { border: 1px solid #f9a8d4; box-sizing: border-box; }
+
+        .puzzle-piece {
+            position: absolute; 
+            /* הגודל מחושב דינמית לפי גודל הלוח */
+            cursor: move; z-index: 100; touch-action: none; 
+            background-image: url('puzzle_full.png');
+            background-repeat: no-repeat;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .puzzle-piece.locked { cursor: default; z-index: 10; box-shadow: none; border: none; }
+
+        /* מסך פתיחה */
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #db2777; z-index: 2000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        #start-btn {
+            padding: 20px 40px; font-size: 28px; font-weight: bold;
+            background: white; color: #db2777; border: none; border-radius: 50px; cursor: pointer;
+        }
+
+        .back-btn {
+            position: fixed; top: 15px; right: 15px;
+            padding: 10px 20px; background: #6366f1; color: white;
+            border: none; border-radius: 12px; text-decoration: none; font-weight: bold; z-index: 1500;
+        }
+
+        .source-image-container {
+            position: fixed; bottom: 15px; left: 15px;
+            background: white; padding: 8px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .source-image { width: 180px; height: auto; border: 2px solid #db2777; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+    <div id="overlay"><button id="start-btn">התחל משחק 🧩</button></div>
+
+    <a href="index.html" class="back-btn">חזרה</a>
+
+    <div id="game-board">
+        <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+        <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+    </div>
+
+    <div class="source-image-container">
+        <img src="puzzle_full.png" class="source-image">
+    </div>
+
+    <script>
+        const board = document.getElementById('game-board');
+        const overlay = document.getElementById('overlay');
+        let lockedPieces = 0;
+        let audioCtx = null;
+
+        // יצירת צליל "ביפ" במידה והקבצים נחסמים
+        function playBeep(freq = 440, duration = 0.1) {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        document.getElementById('start-btn').onclick = () => {
+            overlay.style.display = 'none';
+            // "מעוררים" את האודיו
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            playBeep(600, 0.05); 
+        };
+
+        function createPieces() {
+            const boardRect = board.getBoundingClientRect();
+            const pW = boardRect.width / 3;
+            const pH = boardRect.height / 2;
+
+            for (let r = 0; r < 2; r++) {
+                for (let c = 0; c < 3; c++) {
+                    const piece = document.createElement('div');
+                    piece.className = 'puzzle-piece';
+                    piece.style.width = pW + "px";
+                    piece.style.height = pH + "px";
+                    
+                    // תיקון הרקע: הגודל והמיקום שלו תלויים במידות הלוח כרגע
+                    piece.style.backgroundSize = `${boardRect.width}px ${boardRect.height}px`;
+                    piece.style.backgroundPosition = `-${c * pW}px -${r * pH}px`;
+                    
+                    // פיזור התחלתי בשוליים
+                    piece.style.left = Math.random() < 0.5 ? "10px" : (window.innerWidth - pW - 10) + "px";
+                    piece.style.top = Math.random() * (window.innerHeight - pH) + "px";
+
+                    piece.dataset.row = r;
+                    piece.dataset.col = c;
+
+                    makeElementDraggable(piece);
+                    document.body.appendChild(piece);
+                }
+            }
+        }
+
+        function makeElementDraggable(el) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            el.onmousedown = dragStart; el.ontouchstart = dragStart;
+
+            function dragStart(e) {
+                if (el.classList.contains('locked')) return;
+                const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+                pos3 = clientX; pos4 = clientY;
+                el.style.zIndex = 1000;
+                document.onmousemove = dragMove; document.ontouchmove = dragMove;
+                document.onmouseup = dragEnd; document.ontouchend = dragEnd;
+            }
+
+            function dragMove(e) {
+                const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+                const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+                pos1 = pos3 - clientX; pos2 = pos4 - clientY;
+                pos3 = clientX; pos4 = clientY;
+                el.style.top = (el.offsetTop - pos2) + "px";
+                el.style.left = (el.offsetLeft - pos1) + "px";
+            }
+
+            function dragEnd() {
+                document.onmousemove = null; document.ontouchmove = null;
+                const boardRect = board.getBoundingClientRect();
+                const pW = boardRect.width / 3;
+                const pH = boardRect.height / 2;
+                const targetX = boardRect.left + (el.dataset.col * pW);
+                const targetY = boardRect.top + (el.dataset.row * pH);
+
+                if (Math.abs(el.offsetLeft - targetX) < 40 && Math.abs(el.offsetTop - targetY) < 40) {
+                    el.style.left = targetX + "px";
+                    el.style.top = targetY + "px";
+                    el.classList.add('locked');
+                    lockedPieces++;
+                    playBeep(523.25, 0.2); // צליל "דו" גבוה להצלחה
+                    if (lockedPieces === 6) {
+                        setTimeout(() => {
+                            playBeep(659.25, 0.1); // מי
+                            setTimeout(() => playBeep(783.99, 0.3), 100); // סול
+                            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                        }, 200);
+                    }
+                }
+            }
+        }
+
+        window.onload = createPieces;
+        // עדכון גודל אם מסובבים את המסך
+        window.onresize = () => location.reload();
+    </script>
+</body>
+</html>

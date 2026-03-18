@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>גלגל התנועות - גן בנטל</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            text-align: center;
+            background: #f0fdfa;
+            margin: 0; padding: 20px;
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh;
+            user-select: none;
+        }
+
+        /* כפתור חזרה אחיד למאגר */
+        #back-to-index {
+            position: absolute; top: 15px; right: 15px;
+            padding: 12px 24px; background: #5dade2; color: white;
+            text-decoration: none; border-radius: 15px; font-weight: bold;
+            z-index: 2000; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        #back-to-index:hover { transform: scale(1.05); background: #3498db; }
+
+        h1 { color: #0d9488; font-size: 2.5rem; margin-top: 50px; margin-bottom: 20px; }
+
+        .game-layout {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 50px;
+            flex-wrap: wrap;
+        }
+
+        .wheel-wrapper {
+            position: relative;
+            width: 550px; height: 550px;
+            max-width: 90vw; max-height: 90vw;
+        }
+
+        #canvas {
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            border: 10px solid #fff;
+            box-shadow: 0 0 30px rgba(0,0,0,0.2);
+            transition: transform 4s cubic-bezier(0.1, 0, 0.2, 1);
+            background: white;
+        }
+
+        .pointer {
+            position: absolute;
+            top: -20px; left: 50%;
+            transform: translateX(-50%);
+            width: 50px; height: 50px;
+            background: #ef4444;
+            clip-path: polygon(50% 100%, 0 0, 100% 0);
+            z-index: 10;
+        }
+
+        .spin-btn {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 95px; height: 95px;
+            background: #fff;
+            border: 6px solid #0d9488;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 11;
+            font-weight: bold;
+            color: #0d9488;
+            font-size: 22px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+        }
+        .spin-btn:active { transform: translate(-50%, -50%) scale(0.9); }
+
+        .result-panel {
+            width: 320px;
+            min-height: 420px;
+            background: white;
+            border-radius: 35px;
+            border: 8px solid #0d9488;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        #result-text {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #0d9488;
+            margin-bottom: 20px;
+            min-height: 2.5rem;
+        }
+
+        #result-img {
+            max-width: 280px;
+            max-height: 280px;
+            border-radius: 20px;
+            display: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <a href="index.html" id="back-to-index">🏠 חזרה למאגר</a>
+
+    <h1>גלגל התנועות 🎡</h1>
+
+    <div class="game-layout">
+        <div class="wheel-wrapper">
+            <div class="pointer"></div>
+            <canvas id="canvas" width="1000" height="1000"></canvas>
+            <button class="spin-btn" id="spin">סובב!</button>
+        </div>
+
+        <div class="result-panel">
+            <div id="result-text">מוכנים?</div>
+            <img id="result-img" src="" alt="תוצאה">
+        </div>
+    </div>
+
+    <script>
+        // בדיקת אבטחה קלה - אם לא עברו דרך האינדקס, להחזיר לשם
+        if (sessionStorage.getItem('isLoggedIn') !== 'true') {
+            window.location.href = "index.html";
+        }
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const spinBtn = document.getElementById('spin');
+        const resultText = document.getElementById('result-text');
+        const resultImg = document.getElementById('result-img');
+
+        // רשימת התנועות - כולל התנועה החדשה "הצלבה על הברכיים"
+        const actions = [
+            { text: "ידיים על הכתפיים", img: "shoulder.png" },
+            { text: "ידיים לשמיים", img: "sky.png" },
+            { text: "ידיים בהצלבה", img: "cross.png" },
+            { text: "ידיים על המותניים", img: "hips.png" },
+            { text: "עמידה על רגל אחת", img: "oneleg.png" },
+            { text: "ידיים לצדדים", img: "sides.png" },
+            { text: "ידיים על הראש", img: "head.png" },
+            { text: "הצלבה על הברכיים", img: "ברכיים.png" } // התנועה החדשה
+        ];
+        
+        // צבעים למקטעים - הוספתי צבע שמיני
+        const colors = ["#2dd4bf", "#34d399", "#60a5fa", "#fbbf24", "#f87171", "#a78bfa", "#f472b6", "#c084fc"];
+        let currentRotation = 0;
+        let isSpinning = false;
+        const loadedImages = [];
+        let imagesToLoad = actions.length;
+
+        // טעינת כל התמונות
+        function loadAllImages(callback) {
+            actions.forEach((action, index) => {
+                const img = new Image();
+                img.src = action.img;
+                img.onload = () => {
+                    loadedImages[index] = img;
+                    imagesToLoad--;
+                    if (imagesToLoad === 0) callback();
+                };
+                img.onerror = () => {
+                    console.error("נכשלה טעינת התמונה:", action.img);
+                    loadedImages[index] = null; // טיפול במקרה שתמונה חסרה
+                    imagesToLoad--;
+                    if (imagesToLoad === 0) callback();
+                };
+            });
+        }
+
+        // ציור הגלגל
+        function drawWheel() {
+            const numSegments = actions.length;
+            const arc = (2 * Math.PI) / numSegments;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = centerX;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < numSegments; i++) {
+                const angle = i * arc;
+
+                // ציור הפלח
+                ctx.beginPath();
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, angle, angle + arc);
+                ctx.fill();
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = "white";
+                ctx.stroke();
+
+                // ציור התמונה והטקסט
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(angle + arc / 2);
+
+                const img = loadedImages[i];
+                if (img) {
+                    const imgSize = 160; 
+                    const imgOffset = radius * 0.65; 
+                    ctx.drawImage(img, imgOffset - imgSize / 2, -imgSize / 2, imgSize, imgSize);
+                }
+
+                ctx.textAlign = "right";
+                ctx.fillStyle = "white";
+                ctx.font = "bold 28px Arial";
+                // התאמת מיקום הטקסט לפי מספר הפלחים
+                ctx.fillText(actions[i].text, radius * 0.92, 10);
+
+                ctx.restore();
+            }
+        }
+
+        // לחיצה על כפתור הסיבוב
+        spinBtn.onclick = () => {
+            if (isSpinning) return;
+            isSpinning = true;
+            
+            resultText.innerText = "מסתובב...";
+            resultImg.style.display = "none";
+            
+            const extraDegrees = Math.floor(Math.random() * 360) + 1800; 
+            currentRotation += extraDegrees;
+            canvas.style.transform = `rotate(${currentRotation}deg)`;
+
+            setTimeout(() => {
+                isSpinning = false;
+                const actualDeg = currentRotation % 360;
+                // חישוב המקטע שעצר מול הפוינטר (שנמצא ב-270 מעלות)
+                const index = Math.floor(((360 - actualDeg + 270) % 360) / (360 / actions.length));
+                
+                const selected = actions[index];
+                
+                // עדכון התוצאה
+                resultText.innerText = selected.text;
+                resultImg.src = selected.img;
+                resultImg.style.display = "block";
+                
+                // אפקט קונפטי
+                confetti({ 
+                    particleCount: 150, 
+                    spread: 70, 
+                    origin: { y: 0.7 },
+                    colors: ['#0d9488', '#2dd4bf', '#fbbf24']
+                });
+            }, 4000);
+        };
+
+        // התחלת המשחק אחרי טעינת התמונות
+        loadAllImages(drawWheel);
+    </script>
+</body>
+</html>
